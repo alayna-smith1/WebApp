@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Provo/Orem Amazing Race + Date Finale</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+    body {
+        font-family: "Impact", sans-serif;
+        background: #fff;
+        margin: 0;
+    }
+    header {
+        background: linear-gradient(90deg, #FF0000, #FF8C00, #FFD700);
+        color: white;
+        text-align: center;
+        padding: 18px;
+        font-size: 24px;
+        letter-spacing: 2px;
+    }
+    .container {
+        max-width: 900px;
+        margin: auto;
+        padding: 20px;
+    }
+    button {
+        background: #FF4500;
+        color: white;
+        border: none;
+        font-size: 15px;
+        padding: 10px 16px;
+        margin: 6px 0;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+    }
+    button:hover {
+        background: #e03d00;
+    }
+    input[type=text] {
+        width: 100%;
+        padding: 8px;
+        font-size: 14px;
+        margin-bottom: 8px;
+    }
+    .locations {
+        columns: 2;
+        margin-bottom: 14px;
+    }
+    label { display: block; margin: 6px 0; }
+    .output { margin-top: 22px; }
+    .riddle-box textarea {
+        width: 100%;
+        padding: 6px;
+        font-size: 14px;
+        border: 1px solid #888;
+        border-radius: 4px;
+        font-family: inherit;
+    }
+    #map { height: 450px; margin-top: 18px; display: none; }
+</style>
+
+</head>
+<body>
+
+<header>🏁 PROVO/OREM AMAZING RACE + DATE FINALE 🏎️</header>
+<div class="container">
+
+    <!-- Race location selection -->
+    <h3>Select Race Locations</h3>
+    <div class="locations" id="locList"></div>
+
+    <input type="text" id="customLoc" placeholder="Enter a custom race location">
+    <button onclick="addCustom()">Add Custom Location</button>
+
+    <button onclick="regenerateList()">Regenerate Random Spots</button>
+    
+    <!-- Final date spot selection -->
+    <h3>Choose Final Destination for After the Race</h3>
+    <div id="finalList"></div>
+    <input type="text" id="customFinal" placeholder="Enter a custom final date spot">
+    <button onclick="addCustomFinal()">Add Custom Final Spot</button>
+
+    <button onclick="generateRace()">Generate Race + Clues</button>
+
+    <div class="output" id="output"></div>
+
+    <button onclick="showMap()">View Map of Paths</button>
+    <div id="map"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+
+    // ======= RACE DESTINATIONS =======
+    let defaultDestinations = [
+        {name:"Rock Canyon Trailhead", lat:40.297, lng:-111.637},
+        {name:"Kiwanis Park (rock play area)", lat:40.216, lng:-111.658},
+        {name:"Hillcrest Pickleball Courts", lat:40.319, lng:-111.710},
+        {name:"Provo River Parkway (near BYU)", lat:40.231, lng:-111.655},
+        {name:"Y Trail Parking Lot", lat:40.225, lng:-111.673},
+        {name:"BYU Creamery (frozen treat clue)", lat:40.251, lng:-111.649},
+        {name:"Provo City Center Temple Plaza", lat:40.233, lng:-111.658},
+        {name:"The Cove at Utah Lake", lat:40.213, lng:-111.756},
+        {name:"Memorial Park (near Provo Hosp)", lat:40.237, lng:-111.657},
+        {name:"Covey Center for the Arts", lat:40.296, lng:-111.699}
+    ];
+    let destinations = [];
+
+    function regenerateList() {
+        destinations = shuffle([...defaultDestinations]);
+        renderList();
+    }
+
+    function renderList() {
+        const listEl = document.getElementById("locList");
+        listEl.innerHTML = "";
+        destinations.forEach((d, i) => {
+            listEl.innerHTML += `
+                <label>
+                    <input type="checkbox" value="${i}">
+                    ${d.name}
+                </label>
+            `;
+        });
+    }
+
+    function addCustom() {
+        const name = document.getElementById("customLoc").value.trim();
+        if (name) {
+            destinations.push({name, lat:null, lng:null});
+            renderList();
+            document.getElementById("customLoc").value = "";
+        }
+    }
+
+    function shuffle(arr) {
+        return arr.sort(() => Math.random() - 0.5);
+    }
+
+    // ======= FINAL DATE SPOTS =======
+    let defaultFinalSpots = [
+        "Backyard Fire Pit for S'mores",
+        "Picnic at Rock Canyon Overlook",
+        "Sunset at Utah Lake Marina",
+        "Coffee & Dessert at a Local Cafe",
+        "Photo Walk at Provo City Center Temple",
+        "Stargazing at Y Mountain Vista"
+    ];
+    let finalSpots = [...defaultFinalSpots];
+
+    function renderFinal() {
+        const finalEl = document.getElementById("finalList");
+        finalEl.innerHTML = finalSpots.map((f,i) => `
+            <label><input type="radio" name="finalSpot" value="${i}"> ${f}</label>
+        `).join("");
+    }
+
+    function addCustomFinal() {
+        const name = document.getElementById("customFinal").value.trim();
+        if (name) {
+            finalSpots.push(name);
+            renderFinal();
+            document.getElementById("customFinal").value = "";
+        }
+    }
+
+    renderFinal();
+
+    // ======= GENERATE CLUES AND RACE =======
+    function generateClue(from, to) {
+        const templates = [
+            `Where echoes ripple like ${from.name[0]} in twilight, seek what lies ahead.`,
+            `In whispered winds, a secret bends toward the hint of ${to.name[0]}.`,
+            `What hides between the syllables of "${from.name}" and "${to.name}" draws you onward.`,
+            `Translate shadow clues until the next clue brightens near ${to.name[0]}.`,
+            `A playful twist leads beyond ${from.name[0]} toward ${to.name[0]}.`
+        ];
+        return templates[Math.floor(Math.random() * templates.length)];
+    }
+
+    function generateRace() {
+        const chosen = [...document.querySelectorAll('.locations input:checked')]
+            .map(c => destinations[parseInt(c.value)]);
+
+        if (chosen.length < 5) {
+            alert("Pick at least 5 race locations!");
+            return;
+        }
+
+        const picks = shuffle(chosen).slice(0,5);
+        const teamA = shuffle([...picks]);
+        const teamB = shuffle([...picks]);
+
+        function makeClues(path) {
+            let html = "";
+            for (let i=0; i<path.length-1; i++) {
+                html += `
+                    <div class="riddle-box">
+                        <strong>Clue ${i+1}:</strong>
+                        <textarea>${generateClue(path[i], path[i+1])}</textarea>
+                    </div>
+                `;
+            }
+            return html;
+        }
+
+        // delete previous output
+        let output = `
+            <h3>Team A Path</h3>${makeClues(teamA)}
+            <h3>Team B Path</h3>${makeClues(teamB)}
+        `;
+
+        const finalChoice = document.querySelector('input[name="finalSpot"]:checked');
+        if (finalChoice) {
+            output += `<h3>Final Spot for After the Race:</h3><p>${finalSpots[parseInt(finalChoice.value)]}</p>`;
+        } else {
+            output += `<h3>Final Spot for After the Race:</h3><p><em>None selected</em></p>`;
+        }
+
+        document.getElementById("output").innerHTML = output;
+
+        window.teamA = teamA;
+        window.teamB = teamB;
+        document.getElementById("map").style.display = "none";
+    }
+
+    function showMap() {
+        if (!window.teamA || !window.teamB) {
+            alert("Generate race first!");
+            return;
+        }
+
+        const map = L.map('map').setView([40.25, -111.65], 12);
+        document.getElementById("map").style.display = "block";
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        function drawLine(path, color, thick) {
+            const coords = path.filter(p => p.lat && p.lng).map(p => [p.lat, p.lng]);
+            L.polyline(coords, { color, weight: thick }).addTo(map);
+        }
+        drawLine(window.teamA, 'red', 3);
+        drawLine(window.teamB, 'blue', 8);
+    }
+
+    regenerateList();
+
+</script>
+
+</body>
+</html>
